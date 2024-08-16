@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.querySelector('.sign-out').addEventListener('click', function() {
     localStorage.removeItem('usuarioAutenticado');
     sessionStorage.removeItem('usuarioAutenticado');
-    window.location.href = '../pages/login.html';
+    window.location.href = './../pages/login.html';
 });
 
 class Media {
