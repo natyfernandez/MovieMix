@@ -37,7 +37,7 @@ document.getElementById('form-iniciar').addEventListener('submit', function (eve
             } else {
                 sessionStorage.setItem('usuarioAutenticado', email);
             }
-            window.location.href = '../index.html';
+            window.location.href = './../index.html';
         } else {
             Swal.fire({
                 title: `Contraseña incorrecta.`,
