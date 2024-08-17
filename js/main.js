@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let usuarioAutenticado = localStorage.getItem('usuarioAutenticado') || sessionStorage.getItem('usuarioAutenticado');
 
     if (!usuarioAutenticado) {
-        window.location.href = './pages/login.html';
+        window.location.href = './../pages/login.html';
     }
 });
 
