@@ -55,12 +55,22 @@
     height: 500px;
 }
 .carousel-item img{
+    width: 100%;
     background-size: cover;
     background-position: center;
 }
 .carousel-caption{
     left: 5rem;
     bottom: 2.5rem;
+}
+
+.media-item .image-container{
+    max-height: 50vh;
+    overflow: hidden;
+}
+.media-item img{
+    background-size: cover;
+    background-position: center;
 }
 
 .user .dropdown-menu{  
