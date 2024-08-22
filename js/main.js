@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     let usuarioAutenticado = localStorage.getItem('usuarioAutenticado') || sessionStorage.getItem('usuarioAutenticado');
-
+    
     if (!usuarioAutenticado) {
         window.location.href = './../pages/login.html';
     } else {
@@ -16,29 +16,23 @@ document.querySelector('.sign-out').addEventListener('click', function() {
     window.location.href = './../pages/login.html';
 });
 
-async function fetchMediaByYear(year, page = 1) {
-    const url = `https://www.omdbapi.com/?s=new&y=${year}&apikey=eb786160&page=${page}&r=json`;
-    console.log(`Fetching from URL: ${url}`);
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        console.log('Fetched data:', data);
-        return data.Response === 'True' ? data.Search : null;
-    } catch (error) {
-        console.error('Error fetching data:', error);
-        return null;
-    }
-}
+import './modal_info.js'; 
 
-async function findRecentMedia(page = 1) {
-    const currentYear = new Date().getFullYear();
-    console.log(`Searching for year: ${currentYear}, page: ${page}`);
-    let mediaList = await fetchMediaByYear(currentYear, page);
-    if (!mediaList) {
-        console.log(`No results for year: ${currentYear}, trying previous year.`);
-        mediaList = await fetchMediaByYear(currentYear - 1, page);
-    }
-    return mediaList;
+async function fetchTMDb(endpoint, params = {}) {
+    const url = new URL(`https://api.themoviedb.org/3/${endpoint}`);
+    url.search = new URLSearchParams({
+        ...params,
+        api_key: '6af430b0057121f98c0ff2cd689fcce7'
+    });
+
+    const response = await fetch(url, {
+        headers: {
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2YWY0MzBiMDA1NzEyMWY5OGMwZmYyY2Q2ODlmY2NlNyIsIm5iZiI6MTcyNDI4ODI1NC45Njg0OTUsInN1YiI6IjY2YzY4YzIxMWVkNzY5ZmIwZTYwODgxNiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.K-d4FC8kiaggFMRnGg8vuHNFy7Apio6Wm2We0Ae32lk`
+        }
+    });
+
+    if (!response.ok) throw new Error('Error al obtener datos de la API de TMDb');
+    return await response.json();
 }
 
 async function loadCarousel() {
@@ -46,101 +40,118 @@ async function loadCarousel() {
     let slideCount = 0;
     const containerSlides = document.querySelector('.carousel-inner');
     const templateSlide = document.querySelector('.template-slide').content;
-    const addedTitles = new Set(); // Para rastrear títulos agregados al carrusel
+    const addedTitles = new Set();
     let currentPage = 1;
 
     while (slideCount < requiredSlides) {
-        const mediaList = await findRecentMedia(currentPage);
-        console.log('Media list for carousel:', mediaList);
+        const mediaList = await fetchTMDb('trending/all/day', { page: currentPage });
+        console.log('Lista de medios para el carrusel:', mediaList);
 
-        if (!mediaList || mediaList.length === 0) {
-            console.log(`No media found on page ${currentPage}`);
-            break;
-        }
-
-        for (const media of mediaList) {
+        for (const media of mediaList.results) {
             if (slideCount >= requiredSlides) break;
 
-            if (media.Poster !== 'N/A' && !addedTitles.has(media.Title)) {
+            const posterPath = media.backdrop_path || media.poster_path;
+            if (posterPath && !addedTitles.has(media.title || media.name)) {
                 const image = new Image();
-                image.src = media.Poster.replace(/SX300/, '2000x3000');
-                console.log(`Checking image: ${image.src}`);
+                const imageURL = `https://image.tmdb.org/t/p/w780${posterPath}`;
+                image.src = imageURL;
+                console.log(`Verificando imagen: ${image.src}`);
 
-                await image.decode(); // Esperar a que la imagen cargue
+                await image.decode();
 
-                if (image.width > image.height && !addedTitles.has(image.src)) { // Comprobar que no haya sido agregada
-                    console.log(`Adding media to carousel: ${media.Title}`);
+                if (image.width > image.height && !addedTitles.has(image.src)) {
+                    console.log(`Añadiendo medio al carrusel: ${media.title || media.name}`);
                     const slide = templateSlide.cloneNode(true);
-                    slide.querySelector('h2').textContent = media.Title;
-                    slide.querySelector('p').textContent = media.Type;
+                    slide.querySelector('h2').textContent = media.title || media.name;
+                    slide.querySelector('p').textContent = media.media_type;
 
                     slide.querySelector('img').src = image.src;
-                    slide.querySelector('img').alt = media.Title;
+                    slide.querySelector('img').alt = media.title || media.name;
+
+                    const infoButton = slide.querySelector('.info-button');
+                    infoButton.addEventListener('click', () => {
+                        actualizarModal(media, image.src);
+                    });
 
                     if (slideCount === 0) {
                         slide.querySelector('.carousel-item').classList.add('active');
                     }
 
-                    // Set up the Play button
-                    const playButton = slide.querySelector('.btn-primary');
-                    playButton.href = media.Trailer || '#';
-                    if (!media.Trailer || media.Trailer === '#') {
-                        playButton.style.display = 'none'; // Hide if no trailer link
-                    }
-
-                    // Set up the Info button
-                    const infoButton = slide.querySelector('.btn-secondary');
-                    infoButton.addEventListener('click', () => {
-                        Swal.fire({
-                            title: media.Title,
-                            text: `Year: ${media.Year}\nGenre: ${media.Genre}\nPlot: ${media.Plot}\nRuntime: ${media.Runtime}\nType: ${media.Type}`,
-                            imageUrl: image.src,
-                            imageAlt: media.Title
-                        });
-                    });
-
                     containerSlides.appendChild(slide);
-                    addedTitles.add(media.Title); // Agregar título al set
-                    addedTitles.add(image.src);   // Agregar src de la imagen al set
+                    addedTitles.add(media.title || media.name);
+                    addedTitles.add(image.src);
                     slideCount++;
                 } else {
-                    console.log(`Image not suitable for carousel (not horizontal or duplicate): ${media.Title}`);
+                    console.log(`Imagen no adecuada para el carrusel (no horizontal o duplicada): ${media.title || media.name}`);
+                    // Intentar obtener el trailer si no hay poster horizontal adecuado
+                    const videoResults = await fetchTMDb(`movie/${media.id}/videos`, {});
+                    const trailer = videoResults.results.find(video => video.type === 'Trailer');
+                    if (trailer && !addedTitles.has(media.title || media.name)) {
+                        console.log(`Añadiendo trailer al carrusel: ${media.title || media.name}`);
+                        const slide = templateSlide.cloneNode(true);
+                        slide.querySelector('h2').textContent = media.title || media.name;
+                        slide.querySelector('p').textContent = media.media_type;
+
+                        const videoElement = document.createElement('video');
+                        videoElement.src = `https://www.youtube.com/embed/${trailer.key}`;
+                        videoElement.setAttribute('controls', 'controls');
+                        slide.querySelector('.carousel-item').innerHTML = '';
+                        slide.querySelector('.carousel-item').appendChild(videoElement);
+
+                        const infoButton = slide.querySelector('.info-button');
+                        infoButton.addEventListener('click', () => {
+                            actualizarModal(media, videoElement.src);
+                        });
+
+                        if (slideCount === 0) {
+                            slide.querySelector('.carousel-item').classList.add('active');
+                        }
+
+                        containerSlides.appendChild(slide);
+                        addedTitles.add(media.title || media.name);
+                        slideCount++;
+                    }
                 }
             } else {
-                console.log(`Skipped media: ${media.Title}, Poster: ${media.Poster}`);
+                console.log(`Medio omitido: ${media.title || media.name}, Poster: ${posterPath}`);
             }
         }
 
         if (slideCount < requiredSlides) {
-            console.log(`Not enough slides found, fetching more results...`);
+            console.log(`No se encontraron suficientes slides, obteniendo más resultados...`);
             currentPage++;
         }
     }
 }
 
 async function loadMediaSection() {
-    const mediaList = await findRecentMedia();
-    console.log('Media list for section:', mediaList);
+    const mediaList = await fetchTMDb('discover/movie', { with_genres: 28 });
+    console.log('Lista de medios para la sección:', mediaList);
     if (!mediaList) return;
 
     const containerMedia = document.querySelector('#containerMedia');
     const templateMedia = document.querySelector('.template-media').content;
-    const carouselTitles = new Set(); // Almacena títulos del carrusel para evitar duplicados
+    const carouselTitles = new Set();
 
     document.querySelectorAll('.carousel-inner h2').forEach(title => {
         carouselTitles.add(title.textContent);
     });
 
-    mediaList.forEach(media => {
-        if (!carouselTitles.has(media.Title)) { // Solo agregar si no está en el carrusel
-            console.log(`Adding media to section: ${media.Title}`);
+    mediaList.results.forEach(media => {
+        if (!carouselTitles.has(media.title || media.name)) {
+            console.log(`Añadiendo medio a la sección: ${media.title || media.name}`);
             const mediaItem = templateMedia.cloneNode(true);
-            mediaItem.querySelector('h3').textContent = media.Title;
-            mediaItem.querySelector('p').textContent = media.Year;
+            mediaItem.querySelector('h3').textContent = media.title || media.name;
+            mediaItem.querySelector('p').textContent = media.release_date;
 
-            const highResPoster = media.Poster !== 'N/A' ? `${media.Poster.replace(/SX300/, '2000x3000')}` : 'default_image.jpg';
+            const highResPoster = media.poster_path ? `https://image.tmdb.org/t/p/w500${media.poster_path}` : 'default_image.jpg';
             mediaItem.querySelector('img').src = highResPoster;
-            mediaItem.querySelector('img').alt = media.Title;
+            mediaItem.querySelector('img').alt = media.title || media.name;
+
+            const infoButton = mediaItem.querySelector('.info-button');
+            infoButton.addEventListener('click', () => {
+                actualizarModal(media, highResPoster);
+            });
 
             const agregarLista = mediaItem.querySelector('.agregar-lista');
             agregarLista.addEventListener('click', () => {
@@ -149,16 +160,16 @@ async function loadMediaSection() {
 
             containerMedia.append(mediaItem);
         } else {
-            console.log(`Skipped media for section (already in carousel): ${media.Title}`);
+            console.log(`Medio omitido para la sección (ya en el carrusel): ${media.title || media.name}`);
         }
     });
 }
 
 function agregarALaLista(media) {
     if (estaEnLaLista(media)) {
-        console.log(`${media.Title} ya está en tu lista`);
+        console.log(`${media.title || media.name} ya está en tu lista`);
         Swal.fire({
-            title: `${media.Title} ya está en tu lista`,
+            title: `${media.title || media.name} ya está en tu lista`,
             icon: "info"
         });
         return;
@@ -168,12 +179,12 @@ function agregarALaLista(media) {
     const templateMedia = document.querySelector('.template-media').content;
     const mediaItem = templateMedia.cloneNode(true);
 
-    console.log(`Adding to user list: ${media.Title}`);
+    console.log(`Añadiendo a la lista de usuario: ${media.title || media.name}`);
 
-    mediaItem.querySelector('h3').textContent = media.Title;
-    mediaItem.querySelector('p').textContent = media.Year;
+    mediaItem.querySelector('h3').textContent = media.title || media.name;
+    mediaItem.querySelector('p').textContent = media.release_date;
 
-    const highResPoster = media.Poster !== 'N/A' ? `${media.Poster.replace(/SX300/, '2000x3000')}` : 'default_image.jpg';
+    const highResPoster = media.poster_path ? `https://image.tmdb.org/t/p/w500${media.poster_path}` : 'default_image.jpg';
     mediaItem.querySelector('img').src = highResPoster;
 
     mediaItem.querySelector('.agregar-lista').classList.add('quitar-lista');
@@ -183,7 +194,7 @@ function agregarALaLista(media) {
     quitarLista.querySelector('.fa-xmark').classList.remove('fa-plus');
 
     Swal.fire({
-        title: `${media.Title} Agregado`,
+        title: `${media.title || media.name} Agregado`,
         text: `¡Agregaste este título a tu lista con éxito!`,
         icon: "success"
     });
@@ -199,8 +210,8 @@ function agregarALaLista(media) {
 function estaEnLaLista(media) {
     const items = document.querySelectorAll('#containerList .media-item');
     for (let item of items) {
-        if (item.querySelector('h3').textContent === media.Title) {
-            console.log(`Found in user list: ${media.Title}`);
+        if (item.querySelector('h3').textContent === media.title || media.name) {
+            console.log(`Encontrado en la lista de usuario: ${media.title || media.name}`);
             return true;
         }
     }
@@ -210,15 +221,15 @@ function estaEnLaLista(media) {
 function quitarDeLaLista(media) {
     const items = document.querySelectorAll('#containerList .media-item');
     items.forEach(item => {
-        if (item.querySelector('h3').textContent === media.Title) {
-            console.log(`Removing from user list: ${media.Title}`);
+        if (item.querySelector('h3').textContent === media.title || media.name) {
+            console.log(`Removing from user list: ${media.title || media.name}`);
             item.remove();
             Swal.fire({
-                title: `${media.Title} eliminado`,
+                title: `${media.title || media.name} eliminado`,
                 text: `Eliminaste este título de tu lista con éxito`,
                 icon: "success"
             });
-            eliminarDeLocalStorage(media.Title);
+            eliminarDeLocalStorage(media.title || media.name);
         }
     });
 }
@@ -226,33 +237,33 @@ function quitarDeLaLista(media) {
 function guardarEnLocalStorage(media) {
     let lista = JSON.parse(localStorage.getItem('listaMedia')) || [];
     lista.push(media);
-    console.log('Saved to localStorage:', media.Title);
+    console.log('Saved to localStorage:', media.title || media.name);
     localStorage.setItem('listaMedia', JSON.stringify(lista));
 }
 
 function eliminarDeLocalStorage(titulo) {
     let lista = JSON.parse(localStorage.getItem('listaMedia')) || [];
-    lista = lista.filter(media => media.Title !== titulo);
+    lista = lista.filter(media => media.title !== titulo);
     console.log(`Removed from localStorage: ${titulo}`);
     localStorage.setItem('listaMedia', JSON.stringify(lista));
 }
 
 function loadUserList() {
     const lista = JSON.parse(localStorage.getItem('listaMedia')) || [];
+    console.log('User list loaded from localStorage:', lista);
     const containerList = document.querySelector('#containerList');
     const templateMedia = document.querySelector('.template-media').content;
 
     lista.forEach(media => {
-        console.log(`Loading from localStorage: ${media.Title}`);
         const mediaItem = templateMedia.cloneNode(true);
-        mediaItem.querySelector('h3').textContent = media.Title;
-        mediaItem.querySelector('p').textContent = media.Year;
+        mediaItem.querySelector('h3').textContent = media.title || media.name;
+        mediaItem.querySelector('p').textContent = media.release_date || media.first_air_date;
 
-        const highResPoster = media.Poster !== 'N/A' ? `${media.Poster.replace(/SX300/, '2000x3000')}` : 'default_image.jpg';
+        const highResPoster = media.poster_path ? `https://image.tmdb.org/t/p/w2000_and_h3000_bestv2${media.poster_path}` : 'default_image.jpg';
         mediaItem.querySelector('img').src = highResPoster;
-        
-        const quitarLista = mediaItem.querySelector('.agregar-lista');
-        quitarLista.classList.add('quitar-lista');
+
+        mediaItem.querySelector('.agregar-lista').classList.add('quitar-lista');
+        const quitarLista = mediaItem.querySelector('.quitar-lista');
         quitarLista.classList.remove('agregar-lista');
         quitarLista.querySelector('.fa-plus').classList.add('fa-xmark');
         quitarLista.querySelector('.fa-xmark').classList.remove('fa-plus');

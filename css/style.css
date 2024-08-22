@@ -73,6 +73,10 @@
     background-position: center;
 }
 
+#infomodal img{
+    width: 100%;
+}
+
 .user .dropdown-menu{  
     top: 110%;
     right: 0;
