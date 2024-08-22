@@ -2,7 +2,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let usuarioAutenticado = localStorage.getItem('usuarioAutenticado') || sessionStorage.getItem('usuarioAutenticado');
     
     if (!usuarioAutenticado) {
-        window.location.href = './../pages/login.html';
+        const loginPath = `${window.location.origin}${window.location.pathname.replace(/\/[^\/]*$/, '')}/pages/login.html`;
+        window.location.href = loginPath;
     } else {
         loadCarousel();
         loadMediaSection();
