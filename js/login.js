@@ -59,13 +59,11 @@ const forms = {
     sesion: document.getElementById('sesion')
 };
 
-// Show the form based on the hash in the URL
 const showForm = (formId) => {
     Object.values(forms).forEach(form => form.classList.remove('active'));
     forms[formId].classList.add('active');
 };
 
-// Check hash on load
 const hash = window.location.hash.replace('#', '');
 if (hash && forms[hash]) {
     showForm(hash);
@@ -73,13 +71,11 @@ if (hash && forms[hash]) {
     showForm('sesion');
 }
 
-// Handle form switch
 document.querySelectorAll('.switch-form').forEach(link => {
     link.addEventListener('click', (event) => {
         event.preventDefault();
         const targetId = link.getAttribute('data-target');
         showForm(targetId);
-        // Update URL hash without causing scroll
         window.history.replaceState(null, null, `#${targetId}`);
     });
 });

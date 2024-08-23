@@ -1,23 +1,23 @@
+import { agregarALaLista } from './add_to_list.js'; 
+import { reproducirTrailer, fetchTMDb } from './load_media.js';
+
+let actualizarModal;
+
+import('./modal_info.js').then(module => {
+    actualizarModal = module.actualizarModal;
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     let usuarioAutenticado = localStorage.getItem('usuarioAutenticado') || sessionStorage.getItem('usuarioAutenticado');
     
     if (!usuarioAutenticado) {
-        window.location.href = './../pages/login.html';
-    } else {
-        return;
+        const basePath = window.location.pathname.split('/').slice(0, -1).join('/');
+        const loginPath = `${window.location.origin}${basePath}/pages/login.html`;
+        window.location.href = loginPath;
     }
 });
 
-document.querySelector('.sign-out').addEventListener('click', function() {
-    localStorage.removeItem('usuarioAutenticado');
-    sessionStorage.removeItem('usuarioAutenticado');
-    window.location.href = './../pages/login.html';
-});
-
-import('./modal_info.js');
-
 const apiKey = '6af430b0057121f98c0ff2cd689fcce7';
-const token = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2YWY0MzBiMDA1NzEyMWY5OGMwZmYyY2Q2ODlmY2NlNyIsIm5iZiI6MTcyNDI4ODI1NC45Njg0OTUsInN1YiI6IjY2YzY4YzIxMWVkNzY5ZmIwZTYwODgxNiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.K-d4FC8kiaggFMRnGg8vuHNFy7Apio6Wm2We0Ae32lk';
 
 // Capturar el término de búsqueda de la URL
 const urlParams = new URLSearchParams(window.location.search);
@@ -41,15 +41,18 @@ if (searchQuery) {
                         resultItem.querySelector('.card-title').textContent = media.title || media.name;
                         resultItem.querySelector('.card-text').textContent = `Año: ${media.release_date ? media.release_date.split('-')[0] : 'N/A'}`;
                         
-                        //Enlace y botones
-                        const playButton = resultItem.querySelector('.btn-primary');
-                        const infoButton = resultItem.querySelector('.btn-secondary');
+                        // Enlace y botones
+                        const trailerButton = resultItem.querySelector('.reproducir');
+                        const infoButton = resultItem.querySelector('.info-button');
                         const addToListButton = resultItem.querySelector('.agregar-lista');
 
                         // Asignar eventos a los botones 
-                        playButton.href = media.video_path || '#'; 
+                        obtenerTrailer(media.media_type, media.id, trailerButton);
+                        
                         infoButton.addEventListener('click', () => {
-                            actualizarModal(media, posterPath);
+                            if (actualizarModal) {
+                                actualizarModal(media, posterPath);
+                            }
                         });
 
                         addToListButton.addEventListener('click', () => {
@@ -70,3 +73,24 @@ if (searchQuery) {
 } else {
     document.getElementById('results').innerHTML = `<p>No se proporcionó ninguna consulta de búsqueda.</p>`;
 }
+
+async function obtenerTrailer(mediaType, mediaId, trailerButton) {
+    try {
+        const videoResults = await fetchTMDb(`${mediaType}/${mediaId}/videos`, {});
+        const trailer = videoResults.results.find(video => video.language === 'es' && video.type === 'Trailer') ||
+                        videoResults.results.find(video => video.type === 'Trailer');
+        if (trailer) {
+            trailerButton.href = `https://www.youtube.com/watch?v=${trailer.key}`;
+            trailerButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                reproducirTrailer(trailer.key);
+            });
+        } else {
+            trailerButton.style.display = 'none'; // Oculta el botón si no hay trailer
+        }
+    } catch (error) {
+        console.error('Error al obtener videos:', error);
+        trailerButton.style.display = 'none'; // Oculta el botón si hay un error al obtener videos
+    }
+}
+
